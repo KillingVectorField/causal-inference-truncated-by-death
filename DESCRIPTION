@@ -1,0 +1,11 @@
+Package: TruncCause
+Title: Estimation of causal effects with outcomes truncated by death
+Version: 0.0.0.9000
+Authors@R: person("Zhixuan", "Shao", email = "shaozhixuansh@pku.edu.cn", role = c("aut", "cre"))
+Description: Estimates SACE (survivor average causal effect).
+Depends:
+    R (>= 3.3.2)
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 5.0.1
