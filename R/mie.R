@@ -1,0 +1,366 @@
+#' @title Estimation of causal effects with outcomes truncated by death
+#'
+#' @description \code{mie} estimates survivor average causal effects (SACE) with outcomes truncated by death.
+#'
+#' @details
+#' This function \code{mie}, gives estimation of average causal effects (ACE) with outcomes truncated by death, based on the assumptions of monotonicity, ignorability and exclusion restriction. While the naive estimates given by the coefficient of \code{Z} from \code{lm(Y ~ Z + X + A, subset = S == 1)} are restricted among survivors and therefore may be subject to selection bias, this method gives consistent estimates of the SACE (survivor average causal effect), defined as the average causal effect among the subgroup consisting of subjects who would survive under either exposure, i.e. among the always-survivor group (\eqn{G=LL}). See references.
+#'
+#' Parameters \code{beta} and \code{gamma} are estimated by maximum likelihood estimation, using \link[stats]{optim}.
+#'
+#' If \code{need.variance == TRUE}, the asymptotic variance estimators of both parameters and estimators will be given. This requires the "numDeriv" package, and will take some time.
+#'
+#' @note
+#' The length of vectors \code{Z}, \code{Y}, \code{S}, as well as the row number of matrix \code{X} and \code{A} must equal the sample size \code{n}.
+#'
+#' @param Z a logical vector. Exposure indicator. Convetionally, \code{1} means treatment and \code{0} means control. Must not have missing values.
+#' @param S a logical vector. Survival indicator. \code{1} means survival and \code{0} means death. Must not have missing values.
+#' @param Y a numeric vector. (Univariate) outcomes. May have \code{NA} where \eqn{S=0} (since \eqn{y} is not well-defined where \eqn{S=0}).
+#' @param X an optional numeric matrix or vector. Baseline covariates. 
+#' @param A an optional numeric vector. Substitution variable which satisfies the assumptions of "exclusion restriction" and "substitution relevance". See references. If \code{A == NULL}, then the naive method, namely OLS, will be used.
+#' @param subset an optional vector specifying a subset of obervations to be used.
+#' @param optim.method The method to be used for maximum likelihood optimization. See \link[stats]{optim}.
+#' @param max.step integer. Maximum iterating steps of maximum likelihood optimization.
+#' @param singular.ok logical. Refers to the OLS estimation of the coefficients \code{alpha_0} and \code{alpha_1} using \link[stats]{lm}. If \code{FALSE} (default), a singular fit raises an error.
+#' @param need.variance logical. Is variance of parameters and estimators needed? See details.
+#' @export
+#' @return a list with following elements:
+#' \item{CALL}{function call.}
+#' \item{data}{data used (within the specified subset).}
+#' \item{optim.method}{method used for optimization.}
+#' \item{need.variance}{is variance of parameters and estimators needed?}
+#' \item{n}{sample size.}
+#' \item{mu_0_LL}{average potential outcomes among control group, \eqn{E[ Y(0) | G=LL ]}.}
+#' \item{mu_1_LL}{average potential outcomes among treatment group, \eqn{E[ Y(1) | G=LL ]}.}
+#' \item{sace}{survivor average causal effect, equals \code{mu_1_LL}-\code{mu_0_LL}.}
+#' \item{beta}{\eqn{Pr{S(1)=1| X,A}=expit(\beta_0+X' \beta_1+ A \beta_2)}, estimated by ML optimization.}
+#' \item{gamma}{\eqn{Pr{S(0)=1| X,A}/Pr{S(1)=1| X,A}=expit(\gamma_0+X' \gamma_1+ A \gamma_2)}, estimated by ML optimization.}
+#' \item{beta_gamma.convergence}{indicator of convergence of MLE optimization of beta and gamma. 0 means convergence. See \link[stats]{optim}.}
+#' \item{alpha_0}{\eqn{E[Y(0)| Z=0, G=LL, X, A ]=\alpha_{00}+X' \alpha_{01}+ A \alpha_{02}}, coefficients of \code{lm(Y ~ 1 + X + A, subset = Z == 0)}.}
+#' \item{alpha_1}{\eqn{E[Y(1)| Z=1, G=LL, X, A ]=\alpha_{10}+X' \alpha_{11}+ G \alpha_{12}}, coefficients of \code{lm(Y ~ 1 + X + W.expit, subset = (Z == 1 & S == 1))}.}
+#' The following items will be given only if \code{need.variance == TRUE}:
+#' \item{beta.var}{estimated asymptotic covariance matrix of beta.}
+#' \item{gamma.var}{estimated asymptotic covariance matrix of gamma.}
+#' \item{alpha_0.var}{estimated asymptotic covariance matrix of alpha_0.}
+#' \item{alpha_1.var}{estimated asymptotic covariance matrix of alpha_1.}
+#' \item{mu_0_LL.var}{estimated asymptotic variance of mu_0_LL.}
+#' \item{mu_1_LL.var}{estimated asymptotic variance of mu_1_LL.}
+#' \item{sace.var}{estimated asymptotic variance of sace.}
+#' @author Linbo Wang <linbowang@g.harvard.edu>
+#' @author Zhixuan Shao <shaozhixuansh@pku.edu.cn>
+#' @references Linbo Wang, Xiao-Hua Zhou, Thomas S. Richardson; Identification and estimation of causal effects with outcomes truncated by death, Biometrika, Volume 104, Issue 3, 1 September 2017, Pages 597-612, \url{https://doi.org/10.1093/biomet/asx034}
+
+
+mie <- function(Z, S, Y, X, A, subset, thres = 1e-6, optim.method = "BFGS", max.step = 1000, singular.ok = TRUE, need.variance = TRUE) {
+    ### 0. Checks arguments ###################################
+
+    ## 0.1 Checks data type ###################################
+
+    if (!is.vector(Z)) stop("Z should be a vector.")
+    Z <- as.logical(Z)
+    if (!is.vector(S)) stop("S should be a vector.")
+    S <- as.logical(S)
+    if (!is.vector(Y)) stop("Y should be a vector.")
+    if (missing(X)) X <- NULL
+    else {
+        X <- as.matrix(X)
+        if (!is.matrix(X)) stop("X must be either a vector or a matrix.")
+    }
+    if (missing(A)) A <- NULL
+    else { if (!is.vector(A)) stop("A must be a vector.") }
+
+    ## 0.2 Length check ###################################
+
+    if (missing(subset)) { # check if Z,S,Y,A,X have same length
+        n <- length(Z)
+        if (length(S) != n) stop("S must have the same length as Z's.")
+        if (length(Y) != n) stop("Y must have the same length as Z's.")
+        if ((!is.null(X)) & (nrow(X) != n)) stop("X must have the same row number as Z's length.")
+        if ((!is.null(A)) & (length(A) != n)) stop("A must have the same length as Z's.")
+    }
+
+    ## 0.3 Subset ##################################
+
+    else { # subset is provided
+        Z <- Z[subset]
+        S <- S[subset]
+        Y <- Y[subset]
+        if (!is.null(A)) A <- A[subset]
+        if (!is.null(X)) X <- X[subset,]
+        n <- length(Z)
+    }
+
+    ## 0.4 Missing values ###############################
+
+    if (sum(is.na(Z))) stop("Z should not have missing values.")
+    if (sum(is.na(S))) stop("S should not have missing values.")
+    if (sum(is.na(Y[S]))) stop("Y should not have missing values where S==1.")
+    if ((!is.null(X)) & (sum(is.na(X)))) stop("X should not have missing values.")
+    if (is.null(A)) {
+        warning("A is not provided, naive method (OLS) is used.")
+        if (is.null(X)) return(lm(Y ~ Z, subset = S))
+        else return(lm(Y ~ Z + X, subset = S))
+        }
+    else { if (sum(is.na(A))) stop("A should not have missing values.") }
+
+
+    ### 1. Sets up data ###########################
+    s1 = S == 1;
+    s0_z1 = S == 0 & Z == 1
+    s1_z0 = S == 1 & Z == 0;
+    s0_z0 = S == 0 & Z == 0
+    sz = cbind(s1, s0_z1, s1_z0, s0_z0)
+
+    W <- cbind(rep(1, n), X, A)
+    d <- ncol(W)
+
+    ### 2. Defining interior functions ###########################################
+
+    expit <- function(x) exp(x) / (1 + exp(x))
+
+    nLL_beta <- function(beta, gamma, W, sz) {
+        ebeta = expit(W %*% beta)
+        egamma = expit(W %*% gamma)
+        loglike = sum(sz[, 1] * log(ebeta) + sz[, 2] * log(1 - ebeta) + sz[, 3] * log(egamma) + sz[, 4] * log(1 - ebeta * egamma))
+        return(loglike)
+    }
+
+    #nLL_gamma <- function(gamma, beta, W, sz) nLL_beta(beta, gamma, W, sz) # permute sequence of arguments
+
+    #beta.gr <- function(beta, gamma, W, sz) {
+        #ebeta = as.vector(expit(W %*% beta))
+        #egamma = as.vector(expit(W %*% gamma))
+        #loglike.partial.beta <- colSums((sz[, 1] * (1 - ebeta) + sz[, 2] * (-ebeta) + sz[, 4] /(1-ebeta * egamma) *(- egamma) *(ebeta)*(1-ebeta))* W)
+        #return (loglike.partial.beta)
+    #}
+
+    #gamma.gr <- function(gamma, beta, W, sz) {
+        #ebeta = as.vector(expit(W %*% beta))
+        #egamma = as.vector(expit(W %*% gamma))
+        #loglike.partial.gamma <- colSums((sz[, 3] * (1 - egamma) + sz[, 4] / (1 - ebeta * egamma) * (-ebeta) * (egamma) * (1 - egamma)) * W)
+        #return(loglike.partial.gamma)
+    #}
+
+    beta_gamma.gr <- function(beta, gamma, W, sz) {
+        ebeta = as.vector(expit(W %*% beta))
+        egamma = as.vector(expit(W %*% gamma))
+        loglike.partial.beta <- colSums((sz[, 1] * (1 - ebeta) + sz[, 2] * (-ebeta) + sz[, 4] / (1 - ebeta * egamma) * (-egamma) * (ebeta) * (1 - ebeta)) * W)
+        loglike.partial.gamma <- colSums((sz[, 3] * (1 - egamma) + sz[, 4] / (1 - ebeta * egamma) * (-ebeta) * (egamma) * (1 - egamma)) * W)
+        return (c(loglike.partial.beta,loglike.partial.gamma))
+    }
+
+    #beta.hessian <- function(beta, gamma, W, sz) {
+        #Wbeta <- as.vector(W %*% beta)
+        #ebeta = expit(Wbeta)
+        #egamma = as.vector(expit(W %*% gamma))
+        #d <- length(beta)
+        #loglike.hessian.beta <- matrix(rep(0, d ^ 2), nrow = d)
+        #for (i in 1:n) {
+            #loglike.hessian.beta <- loglike.hessian.beta - (sz[i, 1] + sz[i, 2] + sz[i, 4] * (1 + exp(2 * Wbeta[i]) * (-1 + egamma[i])) * egamma[i] / (-1 + exp(Wbeta[i]) * (-1 + egamma[i])) ^ 2) * (1 - ebeta[i]) * ebeta[i] * outer(W[i,], W[i,])
+        #}
+        #return(loglike.hessian.beta)
+    #}
+
+    #gamma.hessian <- function(gamma, beta, W, sz) {
+        #ebeta <- as.vector(expit(W %*% beta))
+        #Wgamma <- as.vector(W %*% gamma)
+        #egamma <- expit(Wgamma)
+        #d <- length(beta)
+        #loglike.hessian.gamma <- matrix(rep(0, d ^ 2), nrow = d)
+        #for (i in 1:n) {
+            #loglike.hessian.gamma <- loglike.hessian.gamma - (sz[i, 3] + sz[i, 4] * (1 + exp(2 * Wgamma[i]) * (-1 + ebeta[i])) * ebeta[i] / (-1 + exp(Wgamma[i]) * (-1 + ebeta[i])) ^ 2) * (1 - egamma[i]) * egamma[i] * outer(W[i,], W[i,])
+        #}
+        #return(loglike.hessian.gamma)
+    #}
+
+    #beta_gamma.hessian <- function(beta, gamma, W, sz) {
+        #Wbeta <- as.vector(W %*% beta)
+        #exp_Wbeta <- exp(Wbeta)
+        #Wgamma <- as.vector(W %*% gamma)
+        #exp_Wgamma <- exp(Wgamma)
+        #d <- length(beta)
+        #for (i in 1:n) {
+            #loglike.hessian.beta_gamma <- loglike.hessian.beta_gamma - sz[i, 4] * exp_Wbeta[i] * exp_Wgamma[i] / (1 + exp_Wbeta[i] + exp_Wgamma[i]) ^ 2 * outer(W[i,], W[i,])
+        #}
+        #return(loglike.hessian.beta_gamma)
+    #}
+
+    ### 3. Parameter estimation ##############################################
+
+    ## 3.1 Estimating $\beta$ and $\gamma$
+    #lm.s1_z1 <- glm(S~X+A,subset=Z==1,family=binomial)
+
+    #beta <- rep(0, d) #initial values
+    #gamma <- rep(0, d) #initial values
+    #Diff <- function(x, y) sum((x - y) ^ 2) / sum(x ^ 2 + thres) # normalized euclidean distance
+    #diff <- thres + 1
+    #step <- 0
+    #opt1 <- opt2 <- NULL
+    #while (diff > thres & step < max.step) {
+        #opt1 <- optim(beta, nLL_beta, gamma = gamma, W = W, sz = sz,
+                      #method = optim.method,
+                      #gr = beta.gr,
+                      #hessian = TRUE,
+                      #control = list(fnscale = -1, maxit = max.step))
+        #diff1 <- Diff(opt1$par, beta)
+        #beta <- opt1$par
+        #cat("loglik1:", nLL_beta(beta, gamma, W, sz), '\n')
+        #cat("loglik.partial.beta:", beta.gr(beta, gamma, W, sz), '\n')
+        #require(numDeriv)
+        #cat("loglik.partial.beta.numer:", grad(nLL_beta, beta, gamma = gamma, W = W, sz = sz),'\n')
+        #opt2 <- optim(gamma, nLL_gamma, beta = beta, W = W, sz = sz,
+                      #method = optim.method,
+                      #gr = gamma.gr,
+                      #hessian = TRUE,
+                      #control = list(fnscale = -1, maxit = max.step))
+        #diff <- max(diff1, Diff(opt2$par, gamma))
+        #gamma <- opt2$par
+        #cat("loglik2:", nLL_beta(beta, gamma, W, sz), '\n')
+        #cat("loglik.partial.gamma:", gamma.gr(gamma, beta, W, sz), '\n')
+        #cat("loglik.partial.gamma.numer:", grad(nLL_gamma, gamma,beta= beta, W = W, sz = sz,),'\n')
+        #step <- step + 1
+    #}
+    opt3 <- optim(c(rep(0, d), rep(0, d)),
+                  function(beta_gamma, W, sz) nLL_beta(beta_gamma[1:d], beta_gamma[-(1:d)], W, sz),
+                  W = W, sz = sz,
+                  gr = function(beta_gamma, W, sz) beta_gamma.gr(beta_gamma[1:d], beta_gamma[-(1:d)], W, sz),
+                  method = optim.method,
+                  hessian = need.variance,
+                  control = list(fnscale = -1, maxit = 2 * max.step))
+    if (opt3$convergence) { warning("Optimization of beta and gamma didn't converge!") }
+    beta <- opt3$par[1:d]
+    gamma <- opt3$par[-(1:d)]
+    #cat("opt3$beta:", beta, '\n')
+    #cat("opt3$gamma:", gamma, '\n')
+    #cat("loglik_3:", nLL_beta(beta,gamma , W, sz), '\n')
+    #cat("loglik.partial.beta:", beta.gr(beta, gamma, W, sz), '\n')
+    #cat("loglik.partial.beta.numer:", grad(nLL_beta, beta, gamma = gamma, W = W, sz = sz), '\n')
+    #cat("loklike_1:", opt1$value, "\n")
+    #cat("loglike_2:", opt2$value, "\n")
+    #cat("hessian_beta_formula:", '\n')
+    #print(beta.hessian(beta, gamma, W, sz))
+    #cat("hessian_beta_numer:", '\n')
+    ##print(opt1$hessian)
+    #print(hessian(nLL_beta, beta, gamma = gamma, W = W, sz = sz))
+    #cat("hessian_gamma_formula:", '\n')
+    #print(gamma.hessian(gamma, beta, W, sz))
+    #cat("hessian_beta_gamma_formula:", '\n')
+    #print(beta_gamma.hessian(beta, gamma, W, sz))
+    #cat("hessian_beta_gamma_numer:", '\n')
+    #print(opt3$hessian)
+
+    ## 3.2 Estimating alpha_0 (for Z==0) ################
+
+    if (is.null(X)) lm.y.z0 <- lm(Y ~ 1 + A, subset = Z == 0, singular.ok = singular.ok)
+    else lm.y.z0 <- lm(Y ~ 1 + X + A, subset = Z == 0, singular.ok = singular.ok)
+                     
+    alpha_0 <- lm.y.z0$coef
+
+    ## 3.3 Estimating alpha_1 (for Z==1) ##################
+
+    W.expit <- expit(W %*% gamma) # W.expit is the estimate of G
+    if (is.null(X)) lm.y.z1 <- lm(Y ~ 1 + W.expit, subset = (Z == 1 & S == 1), singular.ok = singular.ok)
+    else lm.y.z1 <- lm(Y ~ 1 + X + W.expit, subset = (Z == 1 & S == 1), singular.ok = singular.ok)
+                      
+    alpha_1 <- lm.y.z1$coef
+    if (length(alpha_1) < d) alpha_1[d] <- 0
+
+
+    ### 4. SACE estimation ###################################################
+
+    ## 4.1 E[Y(0)|G=LL] \equiv sace_z0
+
+    #if (is.null(X)) mu_0_LL_W <- predict(lm.y.z0, data.frame(A = A))
+    #else mu_0_LL_W <- predict(lm.y.z0, data.frame(X = X, A = A)))
+    mu_0_LL.fun <- function(alpha_0.beta.gamma, W) {
+        alpha_0 <- alpha_0.beta.gamma[1:d]
+        beta <- alpha_0.beta.gamma[(d + 1):(2 * d)]
+        gamma <- alpha_0.beta.gamma[(2 * d + 1):(3 * d)]
+        mu_0_LL_W <- W %*% alpha_0 # n*1
+        LL_W <- expit(W %*% beta) * expit(W %*% gamma) #n*1
+        mu_0_LL <- sum(mu_0_LL_W * LL_W) / sum(LL_W) #scaler
+        return(mu_0_LL)
+    }
+
+    #LL_W <- expit(W %*% beta) * expit(W %*% gamma) #n*1
+    #mu_0_LL_W.var <- W %*% alpha_0.var %*% t(W) # n*n
+    #cat("mu_0_LL_W.var:", '\n')
+    #print(mu_0_LL_W.var)
+
+    #LL_W.grad <- ebeta * egamma * cbind(W * (1 - ebeta), W * (1 - egamma)) #n*2d
+    
+    #LL_W.var <- LL_W.grad %*% beta_gamma.var %*% t(LL_W.grad) #n*n=(n*2d)%*%(2d*2d)%*%(2d*n)
+    #cat("LL_W.var:", '\n')
+    #print(LL_W.var)
+    mu_0_LL <- mu_0_LL.fun(c(alpha_0, beta, gamma), W)
+
+    ## 4.2 E[Y(1)|G=LL] \equiv sace_z1
+
+    mu_1_LL.fun <- function(alpha_1.beta.gamma, W) {
+        alpha_1 <- alpha_1.beta.gamma[1:d]
+        beta <- alpha_1.beta.gamma[(d + 1):(2 * d)]
+        gamma <- alpha_1.beta.gamma[(2 * d + 1):(3 * d)]
+        Coef <- cbind(rep(1, n), X, rep(1, n))
+        mu_1_LL_W <- Coef %*% alpha_1 #n*1
+        LL_W <- expit(W %*% beta) * expit(W %*% gamma) #n*1
+        mu_1_LL <- sum(mu_1_LL_W * LL_W) / sum(LL_W) #scaler
+        return(mu_1_LL)
+    }
+    
+    
+    mu_1_LL <- mu_1_LL.fun(c(alpha_1, beta, gamma), W)
+
+    sace <- mu_1_LL - mu_0_LL
+    
+    names(beta) <- names(alpha_0)
+    names(gamma) <- names(alpha_0)
+
+    results <- list(CALL = match.call(),
+                    data = list(Z = Z, S = S, Y = Y, X = X, A = A), n = n,
+                    optim.method = optim.method,
+                    need.variance=need.variance,
+                    mu_0_LL = mu_0_LL, mu_1_LL = mu_1_LL,
+                    sace = sace,
+                    beta = beta, gamma = gamma,
+                    beta_gamma.convergence = opt3$convergence,
+                    alpha_0 = alpha_0, alpha_1 = alpha_1)
+    if (need.variance) {
+        require(numDeriv)
+        beta_gamma.var <- solve(-opt3$hessian)
+        beta.var <- beta_gamma.var[1:d, 1:d]
+        gamma.var <- beta_gamma.var[-(1:d), - (1:d)]
+        #cat("beta.var:", '\n')
+        #print(beta.var)
+        #cat("gamma.var:", '\n')
+        #print(gamma.var)
+        alpha_0.var <- vcov(lm.y.z0)
+        alpha_1.var <- vcov(lm.y.z1)
+        mu_0_LL.grad <- grad(mu_0_LL.fun, c(alpha_0, beta, gamma), W = W)
+        #cat('mu_0_LL.grad:', '\n')
+        #print(mu_0_LL.grad)
+        mu_1_LL.grad <- grad(mu_1_LL.fun, c(alpha_1, beta, gamma), W = W)
+
+        alpha_0_alpha_1_beta_gamma.var <- matrix(rep(0, (4 * d) ^ 2), nrow = 4 * d)
+        alpha_0_alpha_1_beta_gamma.var[1:d, 1:d] <- alpha_0.var
+        alpha_0_alpha_1_beta_gamma.var[(d + 1):(2 * d), (d + 1):(2 * d)] <- alpha_1.var
+        alpha_0_alpha_1_beta_gamma.var[(2 * d + 1):(4 * d), (2 * d + 1):(4 * d)] <- beta_gamma.var
+
+        mu_0_LL.var <- mu_0_LL.grad %*% alpha_0_alpha_1_beta_gamma.var[c(1:d, (2 * d + 1):(4 * d)), c(1:d, (2 * d + 1):(4 * d))] %*% mu_0_LL.grad
+        #cat('mu_0_LL.var:', '\n')
+        #print(mu_0_LL.var)
+        mu_1_LL.var <- mu_1_LL.grad %*% alpha_0_alpha_1_beta_gamma.var[-(1:d), - (1:d)] %*% mu_1_LL.grad
+        #cat('mu_1_LL.var:', '\n')
+        #print(mu_1_LL.var)
+        sace.grad <- rep(0, 4 * d)
+        sace.grad[1:d] <- (-1) * mu_0_LL.grad[1:d]
+        sace.grad[(d + 1):(2 * d)] <- mu_1_LL.grad[1:d]
+        sace.grad[(2 * d + 1):(4 * d)] <- mu_1_LL.grad[-(1:d)] - mu_0_LL.grad[-(1:d)]
+
+        sace.var <- sace.grad %*% alpha_0_alpha_1_beta_gamma.var %*% sace.grad
+        #cat('sace.var:', '\n')
+        #print(sace.var)
+        results <- c(results, list(beta.var = beta.var, gamma.var = gamma.var, alpha_0.var = alpha_0.var, alpha_1.var = alpha_1.var, mu_0_LL.var = mu_0_LL.var, mu_1_LL.var = mu_1_LL.var, sace.var = sace.var))
+    }
+    
+    class(results) <- c("mie", "list")
+    return(results)
+}
