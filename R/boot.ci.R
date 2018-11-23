@@ -11,9 +11,10 @@
 #' @param print.progress logical. Need progress be printed?
 #'
 #' @export
-#' @return a list with 3 elements:
+#' @return a list with 4 elements:
 #' \item{nskip}{number of failures during bootstrap.}
-#' \item{sace}{a vector with length \code{nboot}-\code{skip}. SACE estimates of all bootstrap samples.}
+#' \item{sace.boot.record}{a vector with length \code{nboot}-\code{skip}. SACE estimates of all bootstrap samples.}
+#' \item{boot.sd}{scaler. Standard deviation of SACE estimates of all bootstrap samples.}
 #' \item{ci}{a vector with length 2. Estimated confidence interval.}
 #' @author Zhixuan Shao <shaozhixuansh@pku.edu.cn>
 
@@ -35,7 +36,5 @@ boot.ci <- function(object, nboot = 1000, seed = 100:(100 + nboot - 1), alpha = 
         }
         else (record[length(record) + 1] <- tmp)
         }
-    return(list(nskip = nskip, sace.boot.record = record, ci = quantile(record, c(alpha / 2, 1 - alpha / 2)))) # quantile bootstrap interval
+    return(list(nskip = nskip, sace.boot.record = record, boot.sd = sd(record), ci = quantile(record, c(alpha / 2, 1 - alpha / 2)))) # quantile bootstrap interval
 }
-
-#t.boot.ci<-boot.ci(t)
