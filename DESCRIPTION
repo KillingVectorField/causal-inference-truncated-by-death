@@ -1,7 +1,8 @@
-Package: TruncCause
+Package: mieSACE
 Title: Estimation of causal effects with outcomes truncated by death
 Version: 0.0.0.9000
-Authors@R: person("Zhixuan", "Shao", email = "shaozhixuansh@pku.edu.cn", role = c("aut", "cre"))
+Authors@R: c(person("Zhixuan", "Shao", email = "shaozhixuansh@pku.edu.cn", role = "cre"), person("Bo", "Liu", email = "biubo1997@pku.edu.cn", role = "ctb"), person("Linbo", "Wang", email = "linbo.wang@utoronto.ca", role = "aut"), person("Xiaohua", "Zhou", email = "azhou@bicmr.pku.edu.cn", role = "aut"))
+Maintainer: Zhixuan Shao <shaozhixuansh@pku.edu.cn>
 Description: Estimates SACE (survivor average causal effect).
 Depends:
     R (>= 3.3.2)
