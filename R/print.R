@@ -26,5 +26,3 @@ print.mie <- function(object, ...) {
     if (object$need.variance) { cat("(s.e. ", sqrt(object$sace.var), ")", sep = "") }
     cat('\n')
 }
-
-#print(t)

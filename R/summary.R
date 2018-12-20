@@ -1,4 +1,4 @@
-#' @title Summary results of \code{mie}
+#' @title Summarize results of \code{mie}
 #'
 #' @description \code{summary.mie} summary estimation of the SACE (survivor average causal effect) and all other model parameters.
 #'
@@ -39,17 +39,17 @@ summary.mie <- function(object, ...) {
         cat('gamma:', '\n')
         print(coef.summary(object$gamma, object$gamma.var))
         cat('\n')
-        cat('alpha_0:', '\n')
-        print(coef.summary(object$alpha_0, object$alpha_0.var))
-        cat('\n')
         cat('alpha_1:', '\n')
         print(coef.summary(object$alpha_1, object$alpha_1.var))
+        cat('\n')
+        cat('alpha_2:', '\n')
+        print(coef.summary(object$alpha_2, object$alpha_2.var))
     }
     else {
         print(beta)
         print(gamma)
-        print(alpha_0)
         print(alpha_1)
+        print(alpha_2)
     }
     cat('\n')
     cat("----- Average Potential Outcomes and SACE among Always-Survivor Group -----", '\n')

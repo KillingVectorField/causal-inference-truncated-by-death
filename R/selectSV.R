@@ -1,9 +1,9 @@
 #' @title Select the substitution variable whose impact on survival is the most significant.
 #'
-#' @description Provided with a bunch of substitution variables that are all a  priori believed to satisfy the assumptions, i.e. exclusion restriction and substitution relavance, \code{selctSV} chooses the one that most significantly impact survival(\eqn{S}). \eqn{A} whose coefficent has the smallest P-value (against null) will be chosen.
+#' @description Provided with a bunch of substitution variables that are all a priori believed to satisfy the assumptions, i.e. exclusion restriction and substitution relavance, \code{selctSV} chooses the one that most significantly impact survival(\eqn{S}). \eqn{A} whose coefficent has the smallest P-value (against null) will be chosen.
 #'
 #' @note 
-#' Outcome \code{Y} is not needed here. See \link[TruncCause]{mie}.for the meaning of \code{Z}, \code{S}, \code{X}, \code{A}
+#' Outcome \code{Y} is not needed here. See \link[mieSACE]{mie}.for the meaning of \code{Z}, \code{S}, \code{X}, \code{A}
 #'
 #' @param Z a logical vector. Exposure indicator.
 #' @param S a logical vector. Survival indicator.
@@ -92,8 +92,8 @@ selectSV <- function(Z, S, X, A.candidates, subset, optim.method = "BFGS", max.s
         return(c(loglike.partial.beta, loglike.partial.gamma))
     }
 
-    P.values <- rep(NA, ncol(A))
-    for (i in 1:ncol(A)) {
+    P.values <- rep(NA, ncol(A.candidates))
+    for (i in 1:ncol(A.candidates)) {
         A <- A.candidates[, i]
         W <- cbind(rep(1, n), X, A)
         d <- ncol(W)
@@ -122,7 +122,9 @@ selectSV <- function(Z, S, X, A.candidates, subset, optim.method = "BFGS", max.s
         }
         beta.var <- beta_gamma.var[1:d, 1:d]
         gamma.var <- beta_gamma.var[-(1:d), - (1:d)]
-        P.values[i] <- 2 * (1 - max(pnorm(abs(beta[d] / sqrt(beta.var[d, d]))), pnorm(abs(gamma[d] / sqrt(gamma.var[d, d])))))
+        #P.values[i] <- 2 * (1 - max(pnorm(abs(beta[d] / sqrt(beta.var[d, d]))), pnorm(abs(gamma[d] / sqrt(gamma.var[d, d])))))
+        P.values[i] <- pchisq(c(tail(beta, 1), tail(gamma, 1)) %*% solve(beta_gamma.var[c(tail(1:d, 1), tail((d + 1):(2 * d), 1)), c(tail(1:d, 1), tail((d + 1):(2 * d), 1))]) %*% c(tail(beta, 1), tail(gamma, 1)), 2, lower.tail = FALSE)
+        #P.values[i] <- 2 * (1 - pnorm(abs(gamma[d] / sqrt(gamma.var[d, d]))))
     }
     return(list(selected.A = A.names[which.min(P.values)], P.values = P.values))
 }
