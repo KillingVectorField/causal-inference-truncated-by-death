@@ -1,21 +1,21 @@
-#' @title Summarize results of \code{mie}
+#' @title Summarize results of \code{sace}
 #'
-#' @description \code{summary.mie} summary estimation of the SACE (survivor average causal effect) and all other model parameters.
+#' @description \code{summary.sace} summary estimation of the SACE (survivor average causal effect) and all other model parameters.
 #'
 #' @note 
-#' If \code{need.variance} is \code{TRUE}, \code{mie} must have been called with \code{need.variance == TRUE}, so that the information needed was recorded.
+#' If \code{need.variance} is \code{TRUE}, \code{sace} must have been called with \code{need.variance == TRUE}, so that the information needed was recorded.
 #'
-#' @param object an object of class \code{mie}.
+#' @param object an object of class \code{sace}.
 #' @param ... additional arguments.
-#' @method summary mie
+#' @method summary sace
 #' @export
 #' @return the input object is returned silently.
 #' @author Zhixuan Shao <shaozhixuansh@pku.edu.cn>
 
 
 
-summary.mie <- function(object, ...) {
-    if (!inherits(object, "mie")) stop("Object must be of class 'mie'")
+summary.sace <- function(object, ...) {
+    if (!inherits(object, "sace")) stop("Object must be of class 'sace'")
     cat('Call:\n')
     print(object$CALL)
     cat('\n')

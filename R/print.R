@@ -1,16 +1,16 @@
-#' @title Print results of \code{mie}
+#' @title Print results of \code{sace}
 #'
-#' @description \code{print.mie} prints estimation of the SACE (survivor average causal effect).
+#' @description \code{print.sace} prints estimation of the SACE (survivor average causal effect).
 #'
-#' @param object an object of class \code{mie}.
+#' @param object an object of class \code{sace}.
 #' @param ... additional arguments.
-#' @method print mie
+#' @method print sace
 #' @export
 #' @return the input object is returned silently.
 #' @author Zhixuan Shao <shaozhixuansh@pku.edu.cn>
 
-print.mie <- function(object, ...) {
-    if (!inherits(object, "mie")) stop("Object must be of class 'mie'")
+print.sace <- function(object, ...) {
+    if (!inherits(object, "sace")) stop("Object must be of class 'sace'")
 
     cat('Call:\n')
     print(object$CALL)

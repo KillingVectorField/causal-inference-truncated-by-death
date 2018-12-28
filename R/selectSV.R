@@ -3,7 +3,7 @@
 #' @description Provided with a bunch of substitution variables that are all a priori believed to satisfy the assumptions, i.e. exclusion restriction and substitution relavance, \code{selctSV} chooses the one that most significantly impact survival(\eqn{S}). \eqn{A} whose coefficent has the smallest P-value (against null) will be chosen.
 #'
 #' @note 
-#' Outcome \code{Y} is not needed here. See \link[mieSACE]{mie}.for the meaning of \code{Z}, \code{S}, \code{X}, \code{A}
+#' Outcome \code{Y} is not needed here. See \link[tbd]{sace}.for the meaning of \code{Z}, \code{S}, \code{X}, \code{A}
 #'
 #' @param Z a logical vector. Exposure indicator.
 #' @param S a logical vector. Survival indicator.

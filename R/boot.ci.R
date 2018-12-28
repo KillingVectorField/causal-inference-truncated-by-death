@@ -2,12 +2,12 @@
 #'
 #' @description Give quantiles of bootstrap samples SACE.
 #'
-#' @param object an object of class \code{mie}.
+#' @param object an object of class \code{sace}.
 #' @param nboot a positive integer. The number of bootstrap samples desired.
 #' @param seed an integer vector with length \code{nboot}. Seed to generate samples.
 #' @param alpha confidence level.
-#' @param max.step see documentation of \code{mie}.
-#' @param singular.ok see documentation of \code{mie}.
+#' @param max.step see documentation of \link[tbd]{sace}.
+#' @param singular.ok see documentation of \link[tbd]{sace}.
 #' @param print.progress logical. Need progress be printed?
 #'
 #' @export
@@ -19,7 +19,7 @@
 #' @author Zhixuan Shao <shaozhixuansh@pku.edu.cn>
 
 boot.ci <- function(object, nboot = 1000, seed = 100:(100 + nboot - 1), alpha = 0.05, max.step = 1000, singular.ok = FALSE, print.progress = TRUE) {
-    if (!inherits(object, "mie")) stop("Object must be of class 'mie'")
+    if (!inherits(object, "sace")) stop("Object must be of class 'sace'")
     if (length(seed)!=nboot) stop("Length of seed should equal nboot!")
     n <- object$n
     data <- object$data
@@ -29,7 +29,7 @@ boot.ci <- function(object, nboot = 1000, seed = 100:(100 + nboot - 1), alpha = 
         if(print.progress) cat("This is the ", i, "th step \n")
         set.seed(seed[i])
         bt.index <- sample(1:n, n, replace = TRUE)
-        tmp <- try(mie(Z = data$Z, S = data$S, Y = data$Y, X = data$X, A = data$A, subset = bt.index, max.step = max.step, singular.ok = singular.ok, need.variance = FALSE)$sace)
+        tmp <- try(sace(Z = data$Z, S = data$S, Y = data$Y, X = data$X, A = data$A, subset = bt.index, max.step = max.step, singular.ok = singular.ok, need.variance = FALSE)$sace)
         if ('try-error' %in% class(tmp)) {
             nskip = nskip + 1
             next
