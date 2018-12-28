@@ -1,5 +1,6 @@
-require(mieSACE)
-? mie
+require(tbd)
+? sace
+? boot.ci
 #test
 n <- 500
 set.seed(1)
@@ -19,7 +20,7 @@ S <- rbinom(n, 1, ifelse(Z, exp(A %*% beta) / (1 + exp(A %*% beta)), exp(2 * A %
 summary(lm(Y ~ Z + X1 + X2 + X3 + X4, subset = as.logical(S)))
 
 time = proc.time()
-t <- mie(Z, S, Y, cbind(X1, X2, X3, X4), A, optim.method = "BFGS", need.variance = TRUE)
+t <- sace(Z, S, Y, cbind(X1, X2, X3, X4), A, optim.method = "BFGS", need.variance = TRUE)
 proc.time() - time
 
 

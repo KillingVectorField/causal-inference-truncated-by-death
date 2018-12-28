@@ -1,4 +1,4 @@
-Package: mieSACE
+Package: tbd
 Title: Estimation of causal effects with outcomes truncated by death
 Version: 0.0.0.9000
 Authors@R: c(person("Zhixuan", "Shao", email = "shaozhixuansh@pku.edu.cn", role = "cre"), person("Bo", "Liu", email = "biubo1997@pku.edu.cn", role = "ctb"), person("Linbo", "Wang", email = "linbo.wang@utoronto.ca", role = "aut"), person("Xiaohua", "Zhou", email = "azhou@bicmr.pku.edu.cn", role = "aut"))
