@@ -26,8 +26,16 @@ Y <- Y1 * Z + Y0 * (1 - Z)
 Y[S == 0] <- NA
 
 
-summary(lm(Y ~ Z + X, subset = as.logical(S)))$coef
+summary(lm(Y ~ 1 + Z + X + A, subset = as.logical(S)))$coef
 
-require(mieSACE)
-sace <- mie(Z, S, Y, X, A)
+require(tbd)
+sace <- sace(Z, S, Y, X, A, hessian = FALSE)
 sace
+
+#sace.boot <- boot.ci(sace, print.progress = FALSE)
+#sace.boot$boot.sd
+#sace.boot$boot.ci
+
+A2 <- rnorm(size, X %*% u, 1)
+#selectSV(Z, S, X, cbind(A, A2))
+sace(Z, S, Y, X, A2, hessian = FALSE)
