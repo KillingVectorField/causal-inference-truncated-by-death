@@ -22,6 +22,7 @@
 #' @param max.step integer. Maximum iterating steps of maximum likelihood optimization.
 #' @param singular.ok logical. Refers to the OLS estimation of the coefficients \code{alpha_1} and \code{alpha_2} using \link[stats]{lm}. If \code{FALSE} (default), a singular fit raises an error.
 #' @param need.variance logical. Is variance of parameters and estimators needed? See details.
+#' @param hessian logical. If \code{TRUE}, the hessian returned by \link[stat]{optim} will be used to compute the information matrix. If \code{FALSE}, the matrix will be calculated by an explicit formula.
 #' @export
 #' @return a list with following elements:
 #' \item{CALL}{function call.}
@@ -50,7 +51,7 @@
 #' @references Linbo Wang, Xiao-Hua Zhou, Thomas S. Richardson; Identification and estimation of causal effects with outcomes truncated by death, Biometrika, Volume 104, Issue 3, 1 September 2017, Pages 597-612, \url{https://doi.org/10.1093/biomet/asx034}
 
 
-sace <- function(Z, S, Y, X, A, subset, optim.method = "BFGS", max.step = 1000, singular.ok = TRUE, need.variance = TRUE) {
+sace <- function(Z, S, Y, X, A, subset, optim.method = "BFGS", max.step = 1000, singular.ok = TRUE, need.variance = TRUE, hessian=TRUE) {
     ### 0. Checks arguments ###################################
 
     ## 0.1 Checks data type ###################################
@@ -127,22 +128,6 @@ sace <- function(Z, S, Y, X, A, subset, optim.method = "BFGS", max.step = 1000, 
         return(loglike)
     }
 
-    #nLL_gamma <- function(gamma, beta, W, sz) nLL_beta(beta, gamma, W, sz) # permute sequence of arguments
-
-    #beta.gr <- function(beta, gamma, W, sz) {
-        #ebeta = as.vector(expit(W %*% beta))
-        #egamma = as.vector(expit(W %*% gamma))
-        #loglike.partial.beta <- colSums((sz[, 1] * (1 - ebeta) + sz[, 2] * (-ebeta) + sz[, 4] /(1-ebeta * egamma) *(- egamma) *(ebeta)*(1-ebeta))* W)
-        #return (loglike.partial.beta)
-    #}
-
-    #gamma.gr <- function(gamma, beta, W, sz) {
-        #ebeta = as.vector(expit(W %*% beta))
-        #egamma = as.vector(expit(W %*% gamma))
-        #loglike.partial.gamma <- colSums((sz[, 3] * (1 - egamma) + sz[, 4] / (1 - ebeta * egamma) * (-ebeta) * (egamma) * (1 - egamma)) * W)
-        #return(loglike.partial.gamma)
-    #}
-
     beta_gamma.gr <- function(beta, gamma, W, sz) {
         ebeta = as.vector(expit(W %*% beta))
         egamma = as.vector(expit(W %*% gamma))
@@ -151,45 +136,31 @@ sace <- function(Z, S, Y, X, A, subset, optim.method = "BFGS", max.step = 1000, 
         return (c(loglike.partial.beta,loglike.partial.gamma))
     }
 
-    #beta.hessian <- function(beta, gamma, W, sz) {
-        #Wbeta <- as.vector(W %*% beta)
-        #ebeta = expit(Wbeta)
-        #egamma = as.vector(expit(W %*% gamma))
-        #d <- length(beta)
-        #loglike.hessian.beta <- matrix(rep(0, d ^ 2), nrow = d)
-        #for (i in 1:n) {
-            #loglike.hessian.beta <- loglike.hessian.beta - (sz[i, 1] + sz[i, 2] + sz[i, 4] * (1 + exp(2 * Wbeta[i]) * (-1 + egamma[i])) * egamma[i] / (-1 + exp(Wbeta[i]) * (-1 + egamma[i])) ^ 2) * (1 - ebeta[i]) * ebeta[i] * outer(W[i,], W[i,])
-        #}
-        #return(loglike.hessian.beta)
-    #}
-
-    #gamma.hessian <- function(gamma, beta, W, sz) {
-        #ebeta <- as.vector(expit(W %*% beta))
-        #Wgamma <- as.vector(W %*% gamma)
-        #egamma <- expit(Wgamma)
-        #d <- length(beta)
-        #loglike.hessian.gamma <- matrix(rep(0, d ^ 2), nrow = d)
-        #for (i in 1:n) {
-            #loglike.hessian.gamma <- loglike.hessian.gamma - (sz[i, 3] + sz[i, 4] * (1 + exp(2 * Wgamma[i]) * (-1 + ebeta[i])) * ebeta[i] / (-1 + exp(Wgamma[i]) * (-1 + ebeta[i])) ^ 2) * (1 - egamma[i]) * egamma[i] * outer(W[i,], W[i,])
-        #}
-        #return(loglike.hessian.gamma)
-    #}
-
-    #beta_gamma.hessian <- function(beta, gamma, W, sz) {
-        #Wbeta <- as.vector(W %*% beta)
-        #exp_Wbeta <- exp(Wbeta)
-        #Wgamma <- as.vector(W %*% gamma)
-        #exp_Wgamma <- exp(Wgamma)
-        #d <- length(beta)
-        #for (i in 1:n) {
-            #loglike.hessian.beta_gamma <- loglike.hessian.beta_gamma - sz[i, 4] * exp_Wbeta[i] * exp_Wgamma[i] / (1 + exp_Wbeta[i] + exp_Wgamma[i]) ^ 2 * outer(W[i,], W[i,])
-        #}
-        #return(loglike.hessian.beta_gamma)
-    #}
+    beta_gamma_joint.hessian <- function(beta, gamma, W, sz) {
+        Wbeta <- as.vector(W %*% beta)
+        ebeta <- expit(Wbeta)
+        Wgamma <- as.vector(W %*% gamma)
+        egamma <- expit(Wgamma)
+        d <- length(beta)
+        loglike.hessian.beta <- matrix(rep(0, d ^ 2), nrow = d)
+        loglike.hessian.gamma <- matrix(rep(0, d ^ 2), nrow = d)
+        loglike.hessian.beta_gamma <- matrix(rep(0, d ^ 2), nrow = d)
+        for (i in 1:n) {
+            loglike.hessian.beta <- loglike.hessian.beta - (sz[i, 1] + sz[i, 2] + sz[i, 4] * egamma[i] / (1 - ebeta[i] * egamma[i]) * (-ebeta[i] + (1 - ebeta[i]) / (1 - ebeta[i] * egamma[i]))) * ebeta[i] * (1 - ebeta[i]) * outer(W[i,], W[i,])
+            loglike.hessian.gamma <- loglike.hessian.gamma - (sz[i, 3] + sz[i, 4] * ebeta[i] / (1 - ebeta[i] * egamma[i]) * (-egamma[i] + (1 - egamma[i]) / (1 - ebeta[i] * egamma[i]))) * egamma[i] * (1 - egamma[i]) * outer(W[i,], W[i,])
+            loglike.hessian.beta_gamma <- loglike.hessian.beta_gamma - sz[i, 4] * ebeta[i] * (1 - ebeta[i]) * egamma[i] * (1 - egamma[i]) / (1 - ebeta[i] * egamma[i]) ^ 2 * outer(W[i,], W[i,])
+        }
+        loglike.hessian.beta_gamma_joint <- matrix(rep(0, (2 * d) ^ 2), nrow = 2 * d)
+        loglike.hessian.beta_gamma_joint[1:d, 1:d] <- loglike.hessian.beta
+        loglike.hessian.beta_gamma_joint[-(1:d), - (1:d)] <- loglike.hessian.gamma
+        loglike.hessian.beta_gamma_joint[1:d, - (1:d)] <- t(loglike.hessian.beta_gamma)
+        loglike.hessian.beta_gamma_joint[-(1:d), 1:d] <- loglike.hessian.beta_gamma
+        return(loglike.hessian.beta_gamma_joint)
+    }
 
     ### 3. Parameter estimation ##############################################
 
-    ## 3.1 Estimating $\beta$ and $\gamma$
+    ####-------- 3.1 Estimating $\beta$ and $\gamma$--------
     #lm.s1_z1 <- glm(S~X+A,subset=Z==1,family=binomial)
 
     #beta <- rep(0, d) #initial values
@@ -227,7 +198,7 @@ sace <- function(Z, S, Y, X, A, subset, optim.method = "BFGS", max.step = 1000, 
                   W = W, sz = sz,
                   gr = function(beta_gamma, W, sz) beta_gamma.gr(beta_gamma[1:d], beta_gamma[-(1:d)], W, sz),
                   method = optim.method,
-                  hessian = need.variance,
+                  hessian = need.variance&hessian,
                   control = list(fnscale = -1, maxit = 2 * max.step))
     if (opt3$convergence != 0) { warning(paste("Optimization of beta and gamma didn't converge in", max.step, "steps !")) }
     beta <- opt3$par[1:d]
@@ -326,29 +297,52 @@ sace <- function(Z, S, Y, X, A, subset, optim.method = "BFGS", max.step = 1000, 
                     beta = beta, gamma = gamma,
                     beta_gamma.convergence = opt3$convergence,
                     alpha_1 = alpha_1, alpha_2 = alpha_2)
+
+    #########-----------estimate the asymptotic variance-----------####
     if (need.variance) {
         require(numDeriv)
-        beta_gamma.var <- try(solve(-opt3$hessian))
-        if ('try-error' %in% class(beta_gamma.var)) {
-            warning("Failed to estimate variance: Singular Hessian!")
-            results <- c(results, list(sace.var = Inf))
-            class(results) <- c("sace", "list")
-            return(results)
+        failure <- FALSE
+        if (hessian == TRUE) {
+            beta_gamma.var <- try(solve(-opt3$hessian))
+            if ('try-error' %in% class(beta_gamma.var)) {
+                warning("The retured Hessian is not reversible. Use alternative method.")
+                failure <- TRUE
+            }
+            else {
+                pos_definite <- try(prod(diag(beta_gamma.var) >= 0))
+                if ('try-error' %in% class(pos_definite) | is.na(pos_definite) | (!pos_definite)) {
+                    warning("The returned Hessian is not positive definite! Use alternative method.")
+                    failure <- TRUE
+                }
+            }
         }
-        pos_definite <- try(prod(diag(beta_gamma.var) >= 0))
-        if ('try-error' %in% class(pos_definite) | is.na(pos_definite) | (!pos_definite)) {
-            warning("Failed to estimate variance: Non-positive definite Hessian!")
-            results <- c(results, list(sace.var = Inf))
-            class(results) <- c("sace", "list")
-            return(results)
+        if (hessian == FALSE | failure == TRUE) {
+            #ebeta = as.vector(expit(W %*% beta))
+            #egamma = as.vector(expit(W %*% gamma))
+            #score_at_estimated <- cbind((sz[, 1] * (1 - ebeta) + sz[, 2] * (-ebeta) + sz[, 4] / (1 - ebeta * egamma) * (-egamma) * (ebeta) * (1 - ebeta)) * W, (sz[, 3] * (1 - egamma) + sz[, 4] / (1 - ebeta * egamma) * (-ebeta) * (egamma) * (1 - egamma)) * W)
+            #sum_tmp <- 0
+            #for (i in ncol(score_at_estimated)) {
+                #sum_tmp <- sum_tmp + outer(score_at_estimated[i,], score_at_estimated[i,])
+            #}
+            #print(sum_tmp)
+            #beta_gamma.var <- try(solve(sum_tmp))
+            print(beta_gamma_joint.hessian(beta, gamma, W, sz))
+            beta_gamma.var <- try((-1) * solve(beta_gamma_joint.hessian(beta, gamma, W, sz)))
+            if ('try-error' %in% class(beta_gamma.var)) {
+                warning("Failed to estimate variance: Information matrix not reversible!")
+                results <- c(results, list(sace.var = Inf))
+                class(results) <- c("sace", "list")
+                return(results)
+            }
+            print(beta_gamma.var)
         }
         beta.var <- beta_gamma.var[1:d, 1:d]
         gamma.var <- beta_gamma.var[-(1:d), - (1:d)]
         #if ((P_value <- 2 * (1 - max(pnorm(abs(beta[d] / sqrt(beta.var[d, d]))), pnorm(abs(gamma[d] / sqrt(gamma.var[d, d])))))) > 0.10) {
-        if ((P_value <- pchisq(c(tail(beta, ncol(A)), tail(gamma, ncol(A))) %*% solve(beta_gamma.var[c(tail(1:d, ncol(A)), tail((d + 1):(2 * d), ncol(A))), c(tail(1:d, ncol(A)), tail((d + 1):(2 * d), ncol(A)))]) %*% c(tail(beta, ncol(A)), tail(gamma, ncol(A))),2*ncol(A),lower.tail = FALSE )) > 0.10) {
+        if ((P_value <- pchisq(c(tail(beta, ncol(A)), tail(gamma, ncol(A))) %*% solve(beta_gamma.var[c(tail(1:d, ncol(A)), tail((d + 1):(2 * d), ncol(A))), c(tail(1:d, ncol(A)), tail((d + 1):(2 * d), ncol(A)))]) %*% c(tail(beta, ncol(A)), tail(gamma, ncol(A))), 2 * ncol(A), lower.tail = FALSE)) > 0.10) {
         #if ((P_value <- 2 * (1 - pnorm(abs(gamma[d] / sqrt(gamma.var[d, d]))))) > 0.20) {
 
-            warning(paste("Substitution variable(A) had insignificant effect on survival(S)! P Value =", P_value))
+            warning(paste("Substitution variable (A) had insignificant effect on survival (S)!\n P Value =", P_value))
         }
 
         alpha_1.var <- vcov(lm.y.z0)
