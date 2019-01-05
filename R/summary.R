@@ -10,8 +10,6 @@
 #' @method summary sace
 #' @export
 #' @return the input object is returned silently.
-#' @author Zhixuan Shao <shaozhixuansh@pku.edu.cn>
-
 
 
 summary.sace <- function(object, ...) {
@@ -46,10 +44,10 @@ summary.sace <- function(object, ...) {
         print(coef.summary(object$alpha_2, object$alpha_2.var))
     }
     else {
-        print(beta)
-        print(gamma)
-        print(alpha_1)
-        print(alpha_2)
+        print(object$beta)
+        print(object$gamma)
+        print(object$alpha_1)
+        print(object$alpha_2)
     }
     cat('\n')
     cat("----- Average Potential Outcomes and SACE among Always-Survivor Group -----", '\n')

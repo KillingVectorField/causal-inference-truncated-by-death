@@ -3,7 +3,7 @@
 #' @description Provided with a bunch of substitution variables that are all a priori believed to satisfy the assumptions, i.e. exclusion restriction and substitution relavance, \code{selctSV} chooses the one that most significantly impact survival(\eqn{S}). \eqn{A} whose coefficent has the smallest P-value (against null) will be chosen.
 #'
 #' @note 
-#' Outcome \code{Y} is not needed here. See \link[tbd]{sace}.for the meaning of \code{Z}, \code{S}, \code{X}, \code{A}
+#' Outcome \code{Y} is not needed here. See \link[tbd]{sace} for the meaning of \code{Z}, \code{S}, \code{X}, \code{A}
 #'
 #' @param Z a logical vector. Exposure indicator.
 #' @param S a logical vector. Survival indicator.
@@ -107,7 +107,7 @@ selectSV <- function(Z, S, X, A.candidates, subset, optim.method = "BFGS", max.s
         if (opt3$convergence != 0) { warning(paste("Optimization of beta and gamma didn't converge in", max.step, "steps !")) }
         beta <- opt3$par[1:d]
         gamma <- opt3$par[-(1:d)]
-        require(numDeriv)
+        #require(numDeriv)
         beta_gamma.var <- try(solve(-opt3$hessian))
         if ('try-error' %in% class(beta_gamma.var)) {
             warning(paste("Failed to estimate variance of the", i, "th candidate's coefficient!"))

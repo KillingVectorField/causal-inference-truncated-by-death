@@ -5,7 +5,7 @@
 #' @details
 #' This function \code{sace}, gives estimation of average causal effects (ACE) with outcomes truncated by death, based on the assumptions of monotonicity, ignorability and exclusion restriction. While the naive estimates given by the coefficient of \code{Z} from \code{lm(Y ~ Z + X + A, subset = S == 1)} are restricted among survivors and therefore may be subject to selection bias, this method gives consistent estimates of the SACE (survivor average causal effect), defined as the average causal effect among the subgroup consisting of subjects who would survive under either exposure, i.e. among the always-survivor group (\eqn{G=LL}). See references.
 #'
-#' Parameters \code{beta} and \code{gamma} are estimated by maximum likelihood estimation, using \link[stats]{optim}.
+#' Parameters \code{beta} and \code{gamma} are estimated by MLE, using \link[stats]{optim}.
 #'
 #' If \code{need.variance == TRUE}, the asymptotic variance estimators of both parameters and estimators will be given. This requires the "numDeriv" package, and may be time-consuming.
 #'
@@ -22,7 +22,7 @@
 #' @param max.step integer. Maximum iterating steps of maximum likelihood optimization.
 #' @param singular.ok logical. Refers to the OLS estimation of the coefficients \code{alpha_1} and \code{alpha_2} using \link[stats]{lm}. If \code{FALSE} (default), a singular fit raises an error.
 #' @param need.variance logical. Is variance of parameters and estimators needed? See details.
-#' @param hessian logical. If \code{TRUE}, the hessian returned by \link[stat]{optim} will be used to compute the information matrix. If \code{FALSE}, the matrix will be calculated by an explicit formula.
+#' @param hessian logical. If \code{TRUE}, the hessian returned by \link[stats]{optim} will be used to compute the information matrix. If \code{FALSE}, the matrix will be calculated by an explicit formula.
 #' @export
 #' @return a list with following elements:
 #' \item{CALL}{function call.}
@@ -33,8 +33,8 @@
 #' \item{mu_0_LL}{average potential outcomes among control group, \eqn{E[ Y(0) | G=LL ]}.}
 #' \item{mu_1_LL}{average potential outcomes among treatment group, \eqn{E[ Y(1) | G=LL ]}.}
 #' \item{sace}{survivor average causal effect, equals \code{mu_1_LL}-\code{mu_0_LL}.}
-#' \item{beta}{\eqn{Pr{S(1)=1| X,A}=expit(\beta_0+X' \beta_1+ A \beta_2)}, estimated by ML optimization.}
-#' \item{gamma}{\eqn{Pr{S(0)=1| X,A}/Pr{S(1)=1| X,A}=expit(\gamma_0+X' \gamma_1+ A \gamma_2)}, estimated by ML optimization.}
+#' \item{beta}{\eqn{Pr{S(1)=1| X,A}=expit(\beta_0+X' \beta_1+ A \beta_2)}, estimated by MLE.}
+#' \item{gamma}{\eqn{Pr{S(0)=1| X,A}/Pr{S(1)=1| X,A}=expit(\gamma_0+X' \gamma_1+ A \gamma_2)}, estimated by MLE.}
 #' \item{beta_gamma.convergence}{indicator of convergence of MLE optimization of beta and gamma. 0 means convergence. See \link[stats]{optim}.}
 #' \item{alpha_1}{\eqn{E[Y(0)| Z=0, G=LL, X, A ]=\alpha_{00}+X' \alpha_{01}+ A \alpha_{02}}, coefficients of \code{lm(Y ~ 1 + X + A, subset = Z == 0)}.}
 #' \item{alpha_2}{\eqn{E[Y(1)| Z=1, G=LL, X, A ]=\alpha_{10}+X' \alpha_{11}+ G \alpha_{12}}, coefficients of \code{lm(Y ~ 1 + X + W.expit, subset = (Z == 1 & S == 1))}.}
@@ -45,7 +45,7 @@
 #' \item{alpha_2.var}{estimated asymptotic covariance matrix of alpha_2.}
 #' \item{mu_0_LL.var}{estimated asymptotic variance of mu_0_LL.}
 #' \item{mu_1_LL.var}{estimated asymptotic variance of mu_1_LL.}
-#' \item{sace.var}{estimated asymptotic variance of the sace.}
+#' \item{sace.var}{estimated asymptotic variance of the SACE.}
 #' @author Linbo Wang <linbo.wang@utoronto.ca>
 #' @author Zhixuan Shao <shaozhixuansh@pku.edu.cn>
 #' @references Linbo Wang, Xiao-Hua Zhou, Thomas S. Richardson; Identification and estimation of causal effects with outcomes truncated by death, Biometrika, Volume 104, Issue 3, 1 September 2017, Pages 597-612, \url{https://doi.org/10.1093/biomet/asx034}
@@ -300,7 +300,7 @@ sace <- function(Z, S, Y, X, A, subset, optim.method = "BFGS", max.step = 1000, 
 
     #########-----------estimate the asymptotic variance-----------####
     if (need.variance) {
-        require(numDeriv)
+        #require(numDeriv)
         failure <- FALSE
         if (hessian == TRUE) {
             beta_gamma.var <- try(solve(-opt3$hessian))
