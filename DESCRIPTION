@@ -3,7 +3,7 @@ Title: Estimation of causal effects with outcomes truncated by death
 Version: 0.0.0.9000
 Authors@R: c(person("Zhixuan", "Shao", email = "shaozhixuansh@pku.edu.cn", role = "cre"), person("Bo", "Liu", email = "biubo1997@pku.edu.cn", role = "ctb"), person("Linbo", "Wang", email = "linbo.wang@utoronto.ca", role = "aut"), person("Xiaohua", "Zhou", email = "azhou@bicmr.pku.edu.cn", role = "aut"))
 Maintainer: Zhixuan Shao <shaozhixuansh@pku.edu.cn>
-Description: Estimation of the survivor average causal effect under outcomes truncated by death. It can be applied to both experimental and observational data.
+Description: Estimation of the survivor average causal effect under outcomes truncated by death, which requires the existence of a substitution variable. It can be applied to both experimental and observational data.
 Depends:
     R (>= 3.3.2), numDeriv, stats
 License: What license is it under?
