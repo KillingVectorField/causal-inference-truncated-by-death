@@ -41,6 +41,7 @@
 #' The following items will be given only if \code{need.variance == TRUE}:
 #' \item{beta.var}{estimated asymptotic covariance matrix of beta.}
 #' \item{gamma.var}{estimated asymptotic covariance matrix of gamma.}
+#' \item{relevance.Pvalue}{P value of the asymptotic chi-squared test on the relevance assumption for the substitution variable. A large P value suggests that the relevance assumption may not hold, namely, the substitution variable(s) may have little impact on the latent survival type.}
 #' \item{alpha_1.var}{estimated asymptotic covariance matrix of alpha_1.}
 #' \item{alpha_2.var}{estimated asymptotic covariance matrix of alpha_2.}
 #' \item{mu_0_LL.var}{estimated asymptotic variance of mu_0_LL.}
@@ -339,9 +340,10 @@ sace <- function(Z, S, Y, X, A, subset, optim.method = "BFGS", max.step = 1000, 
         beta.var <- beta_gamma.var[1:d, 1:d]
         gamma.var <- beta_gamma.var[-(1:d), - (1:d)]
         #if ((P_value <- 2 * (1 - max(pnorm(abs(beta[d] / sqrt(beta.var[d, d]))), pnorm(abs(gamma[d] / sqrt(gamma.var[d, d])))))) > 0.10) {
-        if ((P_value <- pchisq(c(tail(beta, ncol(A)), tail(gamma, ncol(A))) %*% solve(beta_gamma.var[c(tail(1:d, ncol(A)), tail((d + 1):(2 * d), ncol(A))), c(tail(1:d, ncol(A)), tail((d + 1):(2 * d), ncol(A)))]) %*% c(tail(beta, ncol(A)), tail(gamma, ncol(A))), 2 * ncol(A), lower.tail = FALSE)) > 0.10) {
+        P_value <- pchisq(c(tail(beta, ncol(A)), tail(gamma, ncol(A))) %*% solve(beta_gamma.var[c(tail(1:d, ncol(A)), tail((d + 1):(2 * d), ncol(A))), c(tail(1:d, ncol(A)), tail((d + 1):(2 * d), ncol(A)))]) %*% c(tail(beta, ncol(A)), tail(gamma, ncol(A))), 2 * ncol(A), lower.tail = FALSE)
+        if (P_value > 0.10) {
         #if ((P_value <- 2 * (1 - pnorm(abs(gamma[d] / sqrt(gamma.var[d, d]))))) > 0.20) {
-
+           
             warning(paste("Substitution variable (A) had insignificant effect on survival (S)!\n P Value =", P_value))
         }
 
@@ -386,8 +388,8 @@ sace <- function(Z, S, Y, X, A, subset, optim.method = "BFGS", max.step = 1000, 
         sace.grad[(d + length(alpha_2) + 1):(3 * d + length(alpha_2))] <- mu_1_LL.grad[-(1:length(alpha_2))] - mu_0_LL.grad[-(1:d)]
 
         sace.var <- sace.grad %*% alpha_1_alpha_2_beta_gamma.var %*% sace.grad
-
-        results <- c(results, list(beta.var = beta.var, gamma.var = gamma.var, alpha_1.var = alpha_1.var, alpha_2.var = alpha_2.var, mu_0_LL.var = mu_0_LL.var, mu_1_LL.var = mu_1_LL.var, sace.var = sace.var))
+        
+        results <- c(results, list(beta.var = beta.var, gamma.var = gamma.var, relevance.Pvalue = P_value, alpha_1.var = alpha_1.var, alpha_2.var = alpha_2.var, mu_0_LL.var = mu_0_LL.var, mu_1_LL.var = mu_1_LL.var, sace.var = sace.var))
         
     }
     class(results) <- c("sace", "list")
